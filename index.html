@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>NextGen Werewolf</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Global Effects Overlay -->
+  <div id="vfx-overlay"></div>
+
+  <!-- LOBBY -->
+  <div class="screen active" id="view-lobby">
+    <div class="lobby-container">
+      <h1 class="game-title">🐺 人狼</h1>
+      
+      <div class="tabs">
+        <button class="tab-btn active" data-target="panel-join">🚪 参加</button>
+        <button class="tab-btn" data-target="panel-create">+ 作成</button>
+        <button class="tab-btn" data-target="panel-gm">🎲 GM</button>
+      </div>
+      
+      <div id="panel-join" class="tab-panel active">
+        <div class="input-group">
+          <label>ルームID</label>
+          <input type="text" id="join-roomId" placeholder="123" maxlength="3" inputmode="numeric" pattern="[0-9]*" style="font-family:'Zen Antique Soft',serif; font-size: 32px; text-align: center; letter-spacing: 0.2em;">
+        </div>
+        <div class="input-group">
+          <label>あなたの名前</label>
+          <input type="text" id="join-name" placeholder="プレイヤー名" maxlength="16">
+        </div>
+        <button class="btn primary btn-large" id="btn-join">入室する</button>
+      </div>
+      
+      <div id="panel-create" class="tab-panel">
+        <div class="input-group">
+          <label>あなたの名前（ホスト）</label>
+          <input type="text" id="create-name" placeholder="ホスト名" maxlength="16">
+        </div>
+        <button class="btn primary btn-large" id="btn-create">ルームを作成</button>
+      </div>
+
+      <div id="panel-gm" class="tab-panel">
+        <p style="text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:16px;">GMはゲームに参加せず、進行を管理します。</p>
+        <div class="input-group">
+          <label>あなたの名前（GM）</label>
+          <input type="text" id="gm-name" placeholder="GM名" maxlength="16">
+        </div>
+        <button class="btn gm-btn btn-large" id="btn-gm-create">🎲 GMとしてルームを作成</button>
+        <div style="text-align:center;color:var(--text-dim);font-size:12px;margin:4px 0;">— または —</div>
+        <div class="input-group">
+          <label>既存ルームID</label>
+          <input type="text" id="gm-roomId" placeholder="123" maxlength="3" inputmode="numeric" pattern="[0-9]*" style="font-family:'Zen Antique Soft',serif; font-size: 32px; text-align: center; letter-spacing: 0.2em;">
+        </div>
+        <button class="btn outline btn-large" id="btn-gm-join">GMとして入室</button>
+      </div>
+
+      <div class="toast-message" id="lobby-toast"></div>
+    </div>
+  </div>
+
+  <!-- WAITING ROOM -->
+  <div class="screen" id="view-waiting">
+    <div class="waiting-container">
+      <h2 class="section-title">参加待ち</h2>
+      <div class="room-id-card">
+        <label>ルームID</label>
+        <div class="huge-id" id="display-roomId">----</div>
+      </div>
+      
+      <div class="players-list-card">
+        <div class="list-header">参加中 <span id="waiting-count">0</span>人</div>
+        <ul id="waiting-players-list"></ul>
+      </div>
+
+      <button class="btn primary btn-large" id="btn-start" style="display:none;">🎲 ゲーム開始</button>
+      <div class="helper-text" id="waiting-helper">ホストの開始を待っています...</div>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="screen" id="view-app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <span class="game-brand">🐺 人狼</span>
+        <span class="phase-badge" id="app-phase-badge">昼フェーズ</span>
+      </div>
+      <div class="header-right">
+        <span class="day-label" id="app-day-label">1日目</span>
+        <span class="host-badge" id="app-host-badge" style="display:none;">ホスト</span>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="app-body">
+      <!-- Left / Top Column -->
+      <section class="col-main">
+        
+        <!-- Host Controls -->
+        <div class="card host-controls" id="host-panel" style="display:none;">
+          <h3 class="card-title">🎛 ホスト操作</h3>
+          <div class="phase-buttons">
+            <button class="btn outline" data-phase="discuss">☀️ 議論</button>
+            <button class="btn outline" data-phase="vote">⚖️ 投票</button>
+            <button class="btn outline" data-phase="speech">🗣 弁明</button>
+            <button class="btn outline" data-phase="will">📜 遺言</button>
+            <button class="btn outline" data-phase="night">🌙 夜</button>
+          </div>
+        </div>
+
+        <!-- Announcements / Events -->
+        <div id="announcements-area"></div>
+
+        <!-- Role Card -->
+        <div class="card role-card-wrapper">
+          <h3 class="card-title">あなたの役職</h3>
+          <div id="role-render-area">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Action Callout (Vote / Night) -->
+        <div id="action-callout-area"></div>
+        
+        <!-- Private Logs (Seer / Medium) -->
+        <div id="private-logs-area"></div>
+
+      </section>
+
+      <!-- Right / Bottom Column -->
+      <section class="col-side">
+        <div class="card players-card">
+          <div class="card-header">
+            <h3 class="card-title">プレイヤー</h3>
+            <span class="alive-count" id="app-alive-count">生存 0人</span>
+          </div>
+          <ul id="app-players-list" class="players-list"></ul>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Bottom Sheet (body-level so visible from any screen) -->
+  <div class="bottom-sheet-backdrop" id="bottom-sheet-bg"></div>
+  <div class="bottom-sheet" id="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-content" id="sheet-content">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <!-- GM CONSOLE -->
+  <div class="screen" id="view-gm">
+    <header class="app-header gm-header">
+      <div class="header-left">
+        <span class="game-brand gm-brand">🎲 GMコンソール</span>
+        <span class="phase-badge" id="gm-phase-badge">待機中</span>
+      </div>
+      <div class="header-right">
+        <span class="day-label" id="gm-day-label">1日目</span>
+        <span class="room-badge" id="gm-room-badge">----</span>
+      </div>
+    </header>
+
+    <main class="app-body gm-body">
+      <!-- Left: Controls -->
+      <section class="col-main">
+        <div class="card gm-control-card" id="gm-phase-controls">
+          <h3 class="card-title">📡 フェーズ制御</h3>
+          <div class="phase-buttons gm-phase-buttons">
+            <button class="btn gm-btn" data-gm-phase="confirm">🔍 確認</button>
+            <button class="btn gm-btn" data-gm-phase="discuss">☀️ 議論</button>
+            <button class="btn gm-btn" data-gm-phase="vote">⚖️ 投票</button>
+            <button class="btn gm-btn" data-gm-phase="speech">🗣 弁明</button>
+            <button class="btn gm-btn" data-gm-phase="runoff">⚡ 決戦</button>
+            <button class="btn gm-btn" data-gm-phase="will">📜 遺言</button>
+            <button class="btn gm-btn" data-gm-phase="night">🌙 夜</button>
+          </div>
+          <div id="gm-action-buttons" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+
+        <div id="gm-announcements" class="gm-announcements"></div>
+
+        <div class="card" id="gm-vote-status-card" style="display:none;">
+          <h3 class="card-title">⚖️ 投票状況</h3>
+          <div id="gm-vote-tally"></div>
+        </div>
+
+        <div class="card" id="gm-night-status-card" style="display:none;">
+          <h3 class="card-title">🌙 夜行動ステータス</h3>
+          <div id="gm-night-status"></div>
+        </div>
+      </section>
+
+      <!-- Right: Players with roles -->
+      <section class="col-side">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">👥 全プレイヤー</h3>
+            <span class="alive-count" id="gm-alive-count">生存 0人</span>
+          </div>
+          <ul id="gm-players-list" class="players-list"></ul>
+        </div>
+        <div id="gm-wolf-info" style="margin-top:12px;"></div>
+        <button class="btn gm-btn btn-large" id="btn-gm-start" style="display:none;margin-top:16px;">🎲 ゲーム開始</button>
+        <button class="btn outline btn-large" id="btn-gm-kifu" style="display:none;margin-top:12px;">📜 棋譜を見る</button>
+      </section>
+    </main>
+  </div>
+
+  <!-- KIFU (GAME RECORD) -->
+  <div class="screen" id="view-kifu">
+    <header class="app-header">
+      <div class="header-left">
+        <button class="btn outline" id="btn-kifu-back" style="padding:6px 12px;font-size:13px;">← 戻る</button>
+        <span class="game-brand" style="margin-left:12px;">📜 棋譜</span>
+      </div>
+    </header>
+    <div id="kifu-content" style="padding:16px;max-width:720px;margin:0 auto;width:100%;"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
