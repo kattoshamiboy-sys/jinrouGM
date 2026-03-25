@@ -97,6 +97,21 @@ function saveDB(db) {
   refreshStateFromDB(db);
 }
 
+// 自分が参加していない終了済みルームをlocalStorageから削除してストレージ肥大化を防ぐ
+function cleanupFinishedRooms() {
+  try {
+    const db = loadDB();
+    let changed = false;
+    Object.keys(db.rooms).forEach(rid => {
+      if (rid !== myRoomId && db.rooms[rid]?.public?.status === 'finished') {
+        delete db.rooms[rid];
+        changed = true;
+      }
+    });
+    if (changed) localStorage.setItem('jinrou_db', JSON.stringify(db));
+  } catch (e) { /* ignore */ }
+}
+
 // Atomic read-modify-write to reduce race conditions
 function updateRoom(roomId, mutator) {
   const db = loadDB();
@@ -153,6 +168,7 @@ function refreshStateFromDB(db) {
     if (isGM) switchView('gm');
     else enterRoom(myRoomId);
   }
+  cleanupFinishedRooms();
 })();
 
 // ==========================================
@@ -190,9 +206,19 @@ el('btn-join').addEventListener('click', () => {
   const room = db.rooms[roomId];
   if (!room) return toast('ルームが見つかりません');
 
+  // 自分のUIDが既にルームにある場合はそのまま再入室（なりすまし防止）
+  if (room.public.players[myUid]) {
+    myRoomId = roomId;
+    sessionStorage.setItem('jinrou_roomId', roomId);
+    toast('再入室しました');
+    refreshStateFromDB(db);
+    return;
+  }
+
   const existingPlayer = Object.values(room.public.players).find(p => p.name === name);
   if (existingPlayer) {
     if (room.public.status === 'playing' || room.public.status === 'finished') {
+      // ゲーム中の名前一致再入室は別タブ/別デバイスからの復帰のみ許可
       myUid = existingPlayer.uid;
       sessionStorage.setItem('jinrou_uid', myUid);
       myRoomId = roomId;
@@ -968,11 +994,13 @@ function submitAction() {
 
     if (currentActionType === 'vote_submit') {
       if (!v.voteOrder) v.voteOrder = [];
+      if (v.voteOrder.some(o => o.uid === myUid)) return; // 二重投票防止
       v.voteOrder.push({ uid: myUid, targetId: currentSelection });
       room.public.players[myUid].voteStatus = 'voted';
       checkAutoTally(room, day);
     } else if (currentActionType === 'runoff_submit') {
       if (!v.runoffOrder) v.runoffOrder = [];
+      if (v.runoffOrder.some(o => o.uid === myUid)) return; // 二重投票防止
       v.runoffOrder.push({ uid: myUid, targetId: currentSelection });
       room.public.players[myUid].voteStatus = 'voted';
       checkAutoRunoff(room, day);
@@ -993,13 +1021,16 @@ function submitAction() {
         const nonSetterWolves = aliveWolves.filter(p => p.uid !== setterUid);
         const allNonSetterVoted = nonSetterWolves.every(p => v.wolfVotes[p.uid]);
         if (allNonSetterVoted) {
-          // Setter's vote = majority among non-setter wolves
+          // 提案者の票 = 他の人狼の多数決。同票の場合はランダムで決定
           const counts = {};
           nonSetterWolves.forEach(p => {
             const t = v.wolfVotes[p.uid];
             counts[t] = (counts[t] || 0) + 1;
           });
-          v.wolfVotes[setterUid] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+          const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+          const maxCount = sorted[0][1];
+          const topTargets = sorted.filter(([, c]) => c === maxCount).map(([tid]) => tid);
+          v.wolfVotes[setterUid] = topTargets[Math.floor(Math.random() * topTargets.length)];
         }
       }
       checkAutoNightResolve(room, day);
@@ -1169,12 +1200,16 @@ function tallyRunoff(room, day) {
 
 function checkAutoTally(room, day) {
   const aliveCount = Object.values(room.public.players).filter(p => p.isAlive && !p.isGM).length;
-  if (room.votes[day]?.voteOrder?.length >= aliveCount) tallyVotes(room, day);
+  // ユニークUIDでカウントして二重投票があっても誤発火しないようにする
+  const votedCount = new Set((room.votes[day]?.voteOrder || []).map(o => o.uid)).size;
+  if (votedCount >= aliveCount) tallyVotes(room, day);
 }
 
 function checkAutoRunoff(room, day) {
   const aliveCount = Object.values(room.public.players).filter(p => p.isAlive && !p.isGM).length;
-  if (room.votes[day]?.runoffOrder?.length >= aliveCount) tallyRunoff(room, day);
+  // ユニークUIDでカウントして二重投票があっても誤発火しないようにする
+  const votedCount = new Set((room.votes[day]?.runoffOrder || []).map(o => o.uid)).size;
+  if (votedCount >= aliveCount) tallyRunoff(room, day);
 }
 
 function checkAutoNightResolve(room, day) {
