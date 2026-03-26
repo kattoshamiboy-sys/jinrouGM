@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['public', 'private', 'votes'])",
+
+        "public": {
+          ".validate": "newData.hasChildren(['id', 'status', 'phase', 'day', 'players'])"
+        },
+
+        "private": {
+          "$uid": {
+            ".validate": "newData.hasChildren(['role', 'actionLog'])"
+          }
+        }
+      }
+    },
+
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
