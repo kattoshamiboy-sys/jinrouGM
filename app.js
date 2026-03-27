@@ -388,6 +388,7 @@ function startGame() {
       if (whiteCandidates.length > 0) {
         const target = whiteCandidates[Math.floor(Math.random() * whiteCandidates.length)];
         room.private[seerUid].actionLog.push({
+          _id: `log_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
           day: 1, type: '占い', targetName: room.public.players[target].name, result: '白'
         });
       }
@@ -523,7 +524,7 @@ function renderResultScreen(pub) {
 function checkNewResultLogs(pub, priv) {
   if (!priv?.actionLog) return;
   priv.actionLog.forEach(log => {
-    const logId = `${log.day}-${log.type}-${log.targetName}`;
+    const logId = log._id || `${log.day}-${log.type}-${log.targetName}`;
     if (!seenLogs.has(logId)) {
       if (log.type === '霊能' && pub.phase !== 'night') return;
       showBigPopup(`${log.type}結果`, `<div style="font-size:20px;margin-top:12px;"><strong>${escHtml(log.targetName)}</strong> は <br><strong style="font-size:28px; color:${log.result === '黒' ? 'var(--wolf)' : '#7ab3f5'}">${log.result}</strong> でした。</div>`);
@@ -1071,6 +1072,7 @@ function forceExecute() {
     const medUid = Object.keys(room.private).find(id => room.private[id].role === '霊能者');
     if (medUid && room.public.players[medUid]?.isAlive) {
       room.private[medUid].actionLog.push({
+        _id: `log_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
         day, type: '霊能', targetName: room.public.players[execId].name,
         result: room.private[execId]?.role === '人狼' ? '黒' : '白'
       });
@@ -1142,6 +1144,7 @@ function gmExecuteTopVoter() {
     const medUid = Object.keys(room.private).find(id => room.private[id].role === '霊能者');
     if (medUid && room.public.players[medUid]?.isAlive) {
       room.private[medUid].actionLog.push({
+        _id: `log_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
         day, type: '霊能', targetName: room.public.players[execId].name,
         result: room.private[execId]?.role === '人狼' ? '黒' : '白'
       });
@@ -1275,6 +1278,7 @@ function checkAutoNightResolve(room, day) {
         // Save for kifu
         room.public.days[day - 1].seerResult = { targetId, result: isWolf };
         seer.forEach(s => room.private[s.uid].actionLog.push({
+          _id: `log_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
           day: day, type: '占い', targetName: room.public.players[targetId]?.name || '不明', result: isWolf
         }));
       }
